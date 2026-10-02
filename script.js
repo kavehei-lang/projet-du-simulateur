@@ -130,7 +130,7 @@ function afficherTableau(tbodyElement) {
     // Créer une ligne <tr>
     const ligne = document.createElement("tr");
 
-    // Est-ce qu'une note a été saisie ? (null veut dire "non")
+    // Est-ce qu'une note a été saisie ? (null signifie "non")
     const aUneNote = matiere.note !== null;
 
     // Les 5 valeurs à afficher, dans l'ordre des colonnes.
@@ -198,7 +198,7 @@ function calculerMoyenneGenerale() {
 
   // Deux "compteurs" qui vont grossir à chaque tour de boucle.
   let sommePoints = 0; // somme des (note x coef)
-  let sommeCoef = 0;   // somme des coefficients
+  let sommeCoef = 0;   // somme des coef
 
   for (const matiere of matieres) {
     sommePoints += matiere.note * matiere.coef; // += veut dire "ajoute à la valeur actuelle"
