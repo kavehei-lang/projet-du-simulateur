@@ -238,8 +238,10 @@ function resetNotes() {
 
 /*------------------------------------------------------
 Matières Optionnelles
+- Rajout des options dont il faudra en choisir une parmi LV2, Math et PCC
+  en + de l'Engagement Etudiant
+- On utilise const car le tableau lui-même ne sera jamais remplacé
 ------------------------------------------------------*/
-
 const optionsFacultatives = {
   lv2: { nom: "Langue vivante 2", coef: 1 },
   maths: { nom: "Mathématiques approfondies", coef: 1 },
