@@ -56,29 +56,38 @@
     </div>
 
     <h3>Options facultatives</h3>
-<p>Choisis une option parmi les trois premières.</p>
 
-<label>
-  <input type="checkbox" class="option-unique" value="lv2">
-  Langue vivante 2
-</label>
+<div class="row mb-3">
+  <div class="col-md-6">
+    <label for="selectOption" class="form-label">
+      Choisir une option
+    </label>
+    <select id="selectOption" class="form-select">
+      <option value="">Aucune</option>
+      <option value="lv2">Langue vivante 2</option>
+      <option value="maths">Mathématiques approfondies</option>
+      <option value="certification">
+        Parcours de certification complémentaire
+      </option>
+    </select>
+  </div>
 
-<label>
-  <input type="checkbox" class="option-unique" value="maths">
-  Mathématiques approfondies
-</label>
+  <div class="col-md-6 d-flex align-items-end">
+    <div class="form-check mb-2">
+      <input
+        type="checkbox"
+        class="form-check-input"
+        id="engagement"
+      >
+      <label class="form-check-label" for="engagement">
+        Ajouter l’Engagement étudiant
+      </label>
+    </div>
+  </div>
+</div>
 
-<label>
-  <input type="checkbox" class="option-unique" value="certification">
-  Parcours de certification complémentaire
-</label>
+<div id="notesOptions" class="mb-3"></div>
 
-<label>
-  <input type="checkbox" id="engagement">
-  Engagement étudiant
-</label>
-
-<div id="notesOptions"></div>
 
     <div class="alert alert-secondary">
       <p class="mb-1"><strong>Moyenne générale :</strong>
