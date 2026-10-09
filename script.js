@@ -235,3 +235,113 @@ function resetNotes() {
     matiere.note = null;
   }
 }
+
+/*------------------------------------------------------
+Matières Optionnelles
+------------------------------------------------------*/
+
+const optionsFacultatives = {
+  lv2: { nom: "Langue vivante 2", coef: 1 },
+  maths: { nom: "Mathématiques approfondies", coef: 1 },
+  certification: { nom: "Parcours de certification complémentaire", coef: 1 },
+  engagement: { nom: "Engagement étudiant", coef: 1 }
+};
+
+const casesOptions = document.querySelectorAll(".option-unique");
+const caseEngagement = document.querySelector("#engagement");
+const zoneNotesOptions = document.querySelector("#notesOptions");
+
+// Une seule option parmi LV2, Maths et Certification.
+casesOptions.forEach((caseOption) => {
+  caseOption.addEventListener("change", () => {
+    if (caseOption.checked) {
+      casesOptions.forEach((autreCase) => {
+        if (autreCase !== caseOption) autreCase.checked = false;
+      });
+    }
+
+    afficherChampsOptions();
+  });
+});
+
+caseEngagement.addEventListener("change", afficherChampsOptions);
+
+function afficherChampsOptions() {
+  const optionsChoisies = [
+    ...document.querySelectorAll(".option-unique:checked")
+  ].map((caseOption) => caseOption.value);
+
+  if (caseEngagement.checked) {
+    optionsChoisies.push("engagement");
+  }
+
+  zoneNotesOptions.innerHTML = "";
+
+  optionsChoisies.forEach((id) => {
+    const option = optionsFacultatives[id];
+
+    const ligne = document.createElement("div");
+    ligne.innerHTML = `
+      <label>
+        Note de ${option.nom} sur 20 :
+        <input type="number" min="0" max="20" step="0.25"
+               data-note-option="${id}">
+      </label>
+
+      <label>
+        Coefficient :
+        <input type="number" min="0.5" step="0.5"
+               value="${option.coef}" data-coef-option="${id}">
+      </label>
+    `;
+
+    const champNote = ligne.querySelector(`[data-note-option="${id}"]`);
+    const champCoef = ligne.querySelector(`[data-coef-option="${id}"]`);
+
+    champNote.addEventListener("input", mettreAJourMoyenne);
+    champCoef.addEventListener("input", mettreAJourMoyenne);
+
+    zoneNotesOptions.appendChild(ligne);
+  });
+}
+
+function mettreAJourMoyenne() {
+  // Reprend les notes déjà enregistrées par ton simulateur.
+  const evaluations = Object.values(notes);
+
+  // Ajoute les options sélectionnées si une note a été saisie.
+  zoneNotesOptions.querySelectorAll("[data-note-option]").forEach((champNote) => {
+    const id = champNote.dataset.noteOption;
+    const champCoef = zoneNotesOptions.querySelector(
+      `[data-coef-option="${id}"]`
+    );
+
+    if (champNote.value !== "") {
+      evaluations.push({
+        note: Number(champNote.value),
+        coef: Number(champCoef.value)
+      });
+    }
+  });
+
+  const totalCoefficients = evaluations.reduce(
+    (total, evaluation) => total + Number(evaluation.coef),
+    0
+  );
+
+  const totalPoints = evaluations.reduce(
+    (total, evaluation) =>
+      total + Number(evaluation.note) * Number(evaluation.coef),
+    0
+  );
+
+  const resultat = document.querySelector("#resultat");
+
+  if (totalCoefficients === 0) {
+    resultat.textContent = "Moyenne générale : — / 20";
+    return;
+  }
+
+  resultat.textContent =
+    `Moyenne générale : ${(totalPoints / totalCoefficients).toFixed(2)} / 20`;
+}
