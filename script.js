@@ -185,6 +185,30 @@ function ajouterNote(nomMatiere, noteValeur) {
 }
 
 /**
+ * Détermine la mention à partir d'une moyenne.
+ * CORRECTION : ce code était dans calculerMoyenneGenerale. Je l'ai isolé dans une
+ * fonction pour pouvoir le réutiliser aussi dans mettreAJourMoyenne (options),
+ * sans le recopier deux fois.
+ * @param {number} moyenne - la moyenne sur 20
+ * @returns {string} la mention
+ */
+function determinerMention(moyenne) {
+  // On teste du plus bas au plus haut :
+  // dès qu'une condition est vraie, les suivantes sont ignorées.
+  if (moyenne < 10) {
+    return "Non admis";
+  } else if (moyenne < 12) {
+    return "Aucune";
+  } else if (moyenne < 14) {
+    return "Assez bien";
+  } else if (moyenne < 16) {
+    return "Bien";
+  } else {
+    return "Très bien";
+  }
+}
+
+/**
  * Q4 - Calcule la moyenne pondérée et la mention.
  * CHOIX : si une note manque, on bloque le calcul (on renvoie null),
  * car le diplôme se calcule sur toutes les épreuves obligatoires.
@@ -208,20 +232,8 @@ function calculerMoyenneGenerale() {
   // Moyenne pondérée = total des points / total des coefficients
   const moyenne = sommePoints / sommeCoef;
 
-  // Mention selon la moyenne. On teste du plus bas au plus haut :
-  // dès qu'une condition est vraie, les suivantes sont ignorées.
-  let mention;
-  if (moyenne < 10) {
-    mention = "Non admis";
-  } else if (moyenne < 12) {
-    mention = "Aucune";
-  } else if (moyenne < 14) {
-    mention = "Assez bien";
-  } else if (moyenne < 16) {
-    mention = "Bien";
-  } else {
-    mention = "Très bien";
-  }
+  // La mention est déterminée par la fonction déterminerMention ci-dessus.
+  const mention = determinerMention(moyenne);
 
   // On renvoie un objet avec les deux résultats.
   return { moyenne, mention }; // raccourci pour { moyenne: moyenne, mention: mention }
@@ -236,53 +248,67 @@ function resetNotes() {
   }
 }
 
-/*------------------------------------------------------
-Matières Optionnelles
-- Rajout des options dont il faudra en choisir une parmi LV2, Math et PCC
-  en + de l'Engagement Etudiant
-- On utilise const car le tableau lui-même ne sera jamais remplacé
-------------------------------------------------------*/
+/* ============================================================
+   4. LES OPTIONS FACULTATIVES
+   ============================================================
+   Règle : on peut choisir UNE option parmi LV2, Maths approfondies et
+   Certification (liste déroulante), en plus de l'Engagement étudiant
+   (case à cocher). Chaque option a sa propre note et son coefficient. */
+
+/* Tableau des options, sous forme d'OBJET : chaque clé (lv2, maths...)
+   correspond à la "value" des éléments du HTML.
+   On utilise const car l'objet lui-même ne sera jamais remplacé. */
 const optionsFacultatives = {
-  lv2: { nom: "Langue vivante 2", coef: 1 },
-  maths: { nom: "Mathématiques approfondies", coef: 1 },
+  lv2:           { nom: "Langue vivante 2",                       coef: 1 },
+  maths:         { nom: "Mathématiques approfondies",             coef: 1 },
   certification: { nom: "Parcours de certification complémentaire", coef: 1 },
-  engagement: { nom: "Engagement étudiant", coef: 1 }
+  engagement:    { nom: "Engagement étudiant",                    coef: 1 }
 };
 
-const casesOptions = document.querySelectorAll(".option-unique");
-const caseEngagement = document.querySelector("#engagement");
-const zoneNotesOptions = document.querySelector("#notesOptions");
+/* Récupération des éléments HTML liés aux options.
+   CORRECTION : le code d'origine cherchait des cases ".option-unique" qui
+   n'existent pas dans le HTML (on y a une liste déroulante #selectOption).
+   Comme une liste déroulante ne permet qu'un seul choix, plus besoin de
+   décocher les autres cases à la main. */
+const selectOption     = document.getElementById("selectOption"); // liste : LV2 / Maths / Certification
+const caseEngagement   = document.getElementById("engagement");   // case à cocher : Engagement étudiant
+const zoneNotesOptions = document.getElementById("notesOptions"); // zone où l'on affiche les champs note/coef
 
-// Une seule option parmi LV2, Maths et Certification.
-casesOptions.forEach((caseOption) => {
-  caseOption.addEventListener("change", () => {
-    if (caseOption.checked) {
-      casesOptions.forEach((autreCase) => {
-        if (autreCase !== caseOption) autreCase.checked = false;
-      });
-    }
-
-    afficherChampsOptions();
-  });
-});
-
+// Quand on change l'option dans la liste, ou qu'on coche/décoche l'engagement,
+// on reconstruit les champs de saisie.
+selectOption.addEventListener("change", afficherChampsOptions);
 caseEngagement.addEventListener("change", afficherChampsOptions);
 
+/**
+ * Affiche, pour chaque option choisie, un champ "note" et un champ "coefficient".
+ */
 function afficherChampsOptions() {
-  const optionsChoisies = [
-    ...document.querySelectorAll(".option-unique:checked")
-  ].map((caseOption) => caseOption.value);
+  // Tableau des identifiants d'options choisies (ex : ["lv2", "engagement"]).
+  const optionsChoisies = [];
 
+  // Si l'utilisateur a choisi autre chose que "Aucune" (valeur vide), on l'ajoute.
+  if (selectOption.value !== "") {
+    optionsChoisies.push(selectOption.value);
+  }
+
+  // Si la case Engagement est cochée, on l'ajoute aussi.
   if (caseEngagement.checked) {
     optionsChoisies.push("engagement");
   }
 
+  // On vide la zone avant de la reconstruire (sinon les champs s'accumulent).
   zoneNotesOptions.innerHTML = "";
 
+  // Pour chaque option choisie, on crée un bloc avec deux champs.
   optionsChoisies.forEach((id) => {
-    const option = optionsFacultatives[id];
+    const option = optionsFacultatives[id]; // on retrouve l'objet { nom, coef } grâce à l'identifiant
 
     const ligne = document.createElement("div");
+
+    // Les `backticks` permettent d'écrire du HTML sur plusieurs lignes
+    // et d'y insérer des variables avec ${...}.
+    // data-note-option / data-coef-option : attributs personnalisés qui
+    // mémorisent à quelle option appartient chaque champ.
     ligne.innerHTML = `
       <label>
         Note de ${option.nom} sur 20 :
@@ -297,53 +323,71 @@ function afficherChampsOptions() {
       </label>
     `;
 
+    // On retrouve les deux champs qu'on vient de créer grâce à leur attribut data-...
     const champNote = ligne.querySelector(`[data-note-option="${id}"]`);
     const champCoef = ligne.querySelector(`[data-coef-option="${id}"]`);
 
+    // "input" se déclenche à chaque frappe : la moyenne se met à jour en direct.
     champNote.addEventListener("input", mettreAJourMoyenne);
     champCoef.addEventListener("input", mettreAJourMoyenne);
 
+    // On ajoute le bloc terminé dans la page.
     zoneNotesOptions.appendChild(ligne);
   });
+
+  // Si on retire une option, la moyenne doit être recalculée sans elle.
+  mettreAJourMoyenne();
 }
 
+/**
+ * Recalcule la moyenne en ajoutant les options qui ont une note saisie.
+ * CORRECTIONS par rapport au code d'origine :
+ *  - la variable "notes" n'existait pas (erreur) : on utilise le tableau "matieres" ;
+ *  - l'élément "#resultat" n'existe pas dans le HTML : on affiche dans
+ *    spanMoyenne et spanMention, comme le fait le bouton "Calculer".
+ */
 function mettreAJourMoyenne() {
-  // Reprend les notes déjà enregistrées par ton simulateur.
-  const evaluations = Object.values(notes);
+  // Comme pour Q4, on attend que toutes les épreuves obligatoires aient une note.
+  if (matieres.some((m) => m.note === null)) {
+    return; // on sort de la fonction sans rien changer à l'affichage
+  }
 
-  // Ajoute les options sélectionnées si une note a été saisie.
+  // On transforme chaque matière en un petit objet { note, coef }.
+  // map() crée un NOUVEAU tableau à partir de l'ancien, sans modifier "matieres".
+  const evaluations = matieres.map((m) => ({ note: m.note, coef: m.coef }));
+
+  // On ajoute les options pour lesquelles une note a été saisie.
   zoneNotesOptions.querySelectorAll("[data-note-option]").forEach((champNote) => {
-    const id = champNote.dataset.noteOption;
+    const id = champNote.dataset.noteOption; // lit l'attribut data-note-option
     const champCoef = zoneNotesOptions.querySelector(
       `[data-coef-option="${id}"]`
     );
 
+    // Un champ vide ("") signifie "pas de note" : on ignore cette option.
     if (champNote.value !== "") {
       evaluations.push({
-        note: Number(champNote.value),
+        note: Number(champNote.value), // Number() convertit le texte en nombre
         coef: Number(champCoef.value)
       });
     }
   });
 
+  // reduce() "réduit" le tableau à une seule valeur : ici, une somme.
+  // "total" est le cumul, "evaluation" est l'élément en cours, 0 est la valeur de départ.
   const totalCoefficients = evaluations.reduce(
-    (total, evaluation) => total + Number(evaluation.coef),
+    (total, evaluation) => total + evaluation.coef,
     0
   );
 
   const totalPoints = evaluations.reduce(
-    (total, evaluation) =>
-      total + Number(evaluation.note) * Number(evaluation.coef),
+    (total, evaluation) => total + evaluation.note * evaluation.coef,
     0
   );
 
-  const resultat = document.querySelector("#resultat");
+  // Moyenne pondérée, comme dans Q4, mais avec les options en plus.
+  const moyenne = totalPoints / totalCoefficients;
 
-  if (totalCoefficients === 0) {
-    resultat.textContent = "Moyenne générale : — / 20";
-    return;
-  }
-
-  resultat.textContent =
-    `Moyenne générale : ${(totalPoints / totalCoefficients).toFixed(2)} / 20`;
+  // Affichage de la moyenne et de la mention.
+  document.getElementById("spanMoyenne").textContent = moyenne.toFixed(2);
+  document.getElementById("spanMention").textContent = determinerMention(moyenne);
 }
