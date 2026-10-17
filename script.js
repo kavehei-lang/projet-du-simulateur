@@ -24,6 +24,16 @@ const matieres = [
   { nom: "E7 - Cybersécurité des services informatiques",       coef: 4, type: "ponctuelle", note: null }
 ];
 
+/* Données du RATTRAPAGE (voir la section 5 en bas du fichier).
+   - notesRattrapage est un objet qui associe le NOM d'une épreuve à sa note de rattrapage.
+     Exemple : { "E1 - Culture générale et expression": 12 }
+     Il est vide au départ : aucun rattrapage n'a encore été saisi.
+   - SEUIL_RATTRAPAGE : moyenne en dessous de laquelle le rattrapage est autorisé.
+   HYPOTHÈSE : le sujet ne fixe pas ces règles, elles sont regroupées ici
+   pour pouvoir être modifiées facilement. */
+const notesRattrapage = {};
+const SEUIL_RATTRAPAGE = 10;
+
 /* ============================================================
    2. LE DÉMARRAGE : tout ce qui se passe au chargement de la page
    ============================================================
@@ -133,14 +143,20 @@ function afficherTableau(tbodyElement) {
     // Est-ce qu'une note a été saisie ? (null signifie "non")
     const aUneNote = matiere.note !== null;
 
-    // Les 5 valeurs à afficher, dans l'ordre des colonnes.
+    // Y a-t-il une note de rattrapage pour cette épreuve ? (undefined = non)
+    const noteRattr = notesRattrapage[matiere.nom];
+    const aUnRattrapage = noteRattr !== undefined;
+
+    // Les 6 valeurs à afficher, dans l'ordre des colonnes.
     // L'opérateur ternaire "condition ? siVrai : siFaux" est un "if" en version courte.
     const valeurs = [
       matiere.nom,                                          // colonne 1 : Matière
       matiere.type === "ccf" ? "CCF" : "Ponctuelle",        // colonne 2 : Type
       matiere.coef,                                         // colonne 3 : Coef
       aUneNote ? matiere.note : "—",                        // colonne 4 : Note (ou "—")
-      aUneNote ? (matiere.note * matiere.coef).toFixed(2) : "—" // colonne 5 : Points
+      aUnRattrapage ? noteRattr : "—",                      // colonne 5 : Note de rattrapage (ou "—")
+      // colonne 6 : Points, calculés avec la note RETENUE (la meilleure des deux)
+      aUneNote ? (noteRetenue(matiere) * matiere.coef).toFixed(2) : "—"
     ];
 
     // Pour chaque valeur, créer une cellule <td> et la mettre dans la ligne
@@ -215,22 +231,14 @@ function determinerMention(moyenne) {
  * @returns {{ moyenne: number, mention: string } | null}
  */
 function calculerMoyenneGenerale() {
-  // some() renvoie true si AU MOINS UNE matière a une note nulle.
-  if (matieres.some((m) => m.note === null)) {
+  // Le calcul détaillé est dans calculerMoyenne (plus bas dans le fichier).
+  // true = on tient compte des notes de rattrapage (et des options facultatives).
+  const moyenne = calculerMoyenne(true);
+
+  // null = il manque au moins une note : on bloque le calcul.
+  if (moyenne === null) {
     return null;
   }
-
-  // Deux "compteurs" qui vont grossir à chaque tour de boucle.
-  let sommePoints = 0; // somme des (note x coef)
-  let sommeCoef = 0;   // somme des coef
-
-  for (const matiere of matieres) {
-    sommePoints += matiere.note * matiere.coef; // += veut dire "ajoute à la valeur actuelle"
-    sommeCoef += matiere.coef;
-  }
-
-  // Moyenne pondérée = total des points / total des coefficients
-  const moyenne = sommePoints / sommeCoef;
 
   // La mention est déterminée par la fonction déterminerMention ci-dessus.
   const mention = determinerMention(moyenne);
@@ -246,6 +254,7 @@ function resetNotes() {
   for (const matiere of matieres) {
     matiere.note = null;
   }
+  effacerRattrapage(); // les notes de rattrapage n'ont plus de sens sans les notes de départ
 }
 
 /* ============================================================
@@ -253,7 +262,11 @@ function resetNotes() {
    ============================================================
    Règle : on peut choisir UNE option parmi LV2, Maths approfondies et
    Certification (liste déroulante), en plus de l'Engagement étudiant
-   (case à cocher). Chaque option a sa propre note et son coefficient. */
+   (case à cocher). Chaque option a sa propre note et son coefficient.
+   IMPORTANT (note (**) du tableau officiel) : pour les épreuves facultatives,
+   SEULS LES POINTS AU-DESSUS DE 10 SONT PRIS EN COMPTE. Ce sont donc des
+   points BONUS (voir calculerPointsBonus) : ils s'ajoutent au total,
+   mais ne changent pas le diviseur et ne peuvent jamais faire baisser la moyenne. */
 
 /* Tableau des options, sous forme d'OBJET : chaque clé (lv2, maths...)
    correspond à la "value" des éléments du HTML.
@@ -340,54 +353,172 @@ function afficherChampsOptions() {
 }
 
 /**
- * Recalcule la moyenne en ajoutant les options qui ont une note saisie.
- * CORRECTIONS par rapport au code d'origine :
- *  - la variable "notes" n'existait pas (erreur) : on utilise le tableau "matieres" ;
- *  - l'élément "#resultat" n'existe pas dans le HTML : on affiche dans
- *    spanMoyenne et spanMention, comme le fait le bouton "Calculer".
+ * Calcule les POINTS BONUS des options facultatives.
+ * Règle officielle (note (**) du tableau) : seuls les points au-dessus de 10 comptent.
+ * Exemples (coef 1) : 14/20 donne (14 - 10) x 1 = 4 points bonus ; 8/20 donne 0 point (pas de malus).
+ * @returns {number} le total de points bonus
  */
-function mettreAJourMoyenne() {
-  // Comme pour Q4, on attend que toutes les épreuves obligatoires aient une note.
-  if (matieres.some((m) => m.note === null)) {
-    return; // on sort de la fonction sans rien changer à l'affichage
-  }
+function calculerPointsBonus() {
+  let bonus = 0; // compteur qui grossit à chaque option saisie
 
-  // On transforme chaque matière en un petit objet { note, coef }.
-  // map() crée un NOUVEAU tableau à partir de l'ancien, sans modifier "matieres".
-  const evaluations = matieres.map((m) => ({ note: m.note, coef: m.coef }));
-
-  // On ajoute les options pour lesquelles une note a été saisie.
+  // On parcourt tous les champs "note" présents dans la zone des options.
   zoneNotesOptions.querySelectorAll("[data-note-option]").forEach((champNote) => {
-    const id = champNote.dataset.noteOption; // lit l'attribut data-note-option
+    const id = champNote.dataset.noteOption; // identifiant de l'option (lv2, maths...)
     const champCoef = zoneNotesOptions.querySelector(
       `[data-coef-option="${id}"]`
     );
 
     // Un champ vide ("") signifie "pas de note" : on ignore cette option.
     if (champNote.value !== "") {
-      evaluations.push({
-        note: Number(champNote.value), // Number() convertit le texte en nombre
-        coef: Number(champCoef.value)
-      });
+      const note = Number(champNote.value); // Number() convertit le texte en nombre
+      const coef = Number(champCoef.value);
+
+      // Math.max(0, x) renvoie x s'il est positif, sinon 0 : c'est ce qui
+      // empêche une mauvaise note d'option de faire baisser la moyenne.
+      bonus += Math.max(0, note - 10) * coef;
     }
   });
 
-  // reduce() "réduit" le tableau à une seule valeur : ici, une somme.
-  // "total" est le cumul, "evaluation" est l'élément en cours, 0 est la valeur de départ.
-  const totalCoefficients = evaluations.reduce(
-    (total, evaluation) => total + evaluation.coef,
-    0
-  );
+  return bonus;
+}
 
-  const totalPoints = evaluations.reduce(
-    (total, evaluation) => total + evaluation.note * evaluation.coef,
-    0
-  );
+/**
+ * Renvoie la note RETENUE d'une épreuve.
+ * HYPOTHÈSE : si l'étudiant passe le rattrapage, on garde la MEILLEURE des deux notes.
+ * (Pour retenir toujours la note de rattrapage, remplacer Math.max par "return rattrapage;")
+ * @param {{nom: string, note: number}} matiere
+ * @returns {number}
+ */
+function noteRetenue(matiere) {
+  const rattrapage = notesRattrapage[matiere.nom]; // undefined si pas de rattrapage
 
-  // Moyenne pondérée, comme dans Q4, mais avec les options en plus.
-  const moyenne = totalPoints / totalCoefficients;
+  if (rattrapage === undefined) {
+    return matiere.note; // pas de rattrapage : on garde la note d'origine
+  }
+  return Math.max(matiere.note, rattrapage);
+}
 
-  // Affichage de la moyenne et de la mention.
-  document.getElementById("spanMoyenne").textContent = moyenne.toFixed(2);
-  document.getElementById("spanMention").textContent = determinerMention(moyenne);
+/**
+ * Calcule la moyenne générale (sans la mention).
+ * Moyenne = (somme des note x coef + points bonus des options) / somme des coef des 7 épreuves.
+ * Le diviseur ne contient PAS les options : ce sont de simples bonus.
+ * @param {boolean} avecRattrapage - true : on utilise les notes retenues ; false : les notes d'origine
+ * @returns {number|null} la moyenne, ou null s'il manque une note
+ */
+function calculerMoyenne(avecRattrapage) {
+  // some() renvoie true si AU MOINS UNE matière a une note nulle.
+  if (matieres.some((m) => m.note === null)) {
+    return null;
+  }
+
+  // Deux "compteurs" qui vont grossir à chaque tour de boucle.
+  let sommePoints = 0; // somme des (note x coef)
+  let sommeCoef = 0;   // somme des coef
+
+  for (const matiere of matieres) {
+    const note = avecRattrapage ? noteRetenue(matiere) : matiere.note;
+    sommePoints += note * matiere.coef; // += veut dire "ajoute à la valeur actuelle"
+    sommeCoef += matiere.coef;
+  }
+
+  // On ajoute les points bonus des options (0 si aucune option saisie).
+  sommePoints += calculerPointsBonus();
+
+  // Moyenne pondérée = total des points / total des coefficients
+  return sommePoints / sommeCoef;
+}
+
+/**
+ * Met à jour l'affichage de la moyenne et de la mention.
+ * Appelée à chaque modification d'une option ou d'un rattrapage.
+ */
+function mettreAJourMoyenne() {
+  const resultat = calculerMoyenneGenerale(); // même calcul que le bouton "Calculer"
+
+  // null = il manque des notes : on laisse l'affichage tel quel.
+  if (resultat === null) {
+    return;
+  }
+
+  document.getElementById("spanMoyenne").textContent = resultat.moyenne.toFixed(2);
+  document.getElementById("spanMention").textContent = resultat.mention;
+}
+
+/* ============================================================
+   5. LE RATTRAPAGE
+   ============================================================
+   HYPOTHÈSES (le sujet ne donne pas de règle précise, à faire valider par la prof) :
+   1. Le rattrapage n'est possible que si la moyenne SANS rattrapage est < SEUIL_RATTRAPAGE (10).
+   2. Seules les épreuves PONCTUELLES peuvent être repassées (un CCF se déroule
+      en cours de formation, on ne peut pas le repasser).
+   3. La note retenue est la meilleure des deux (voir noteRetenue). */
+
+// Récupération des éléments HTML de la section Rattrapage.
+const selectRattrapage     = document.getElementById("selectRattrapage");
+const inputRattrapage      = document.getElementById("inputRattrapage");
+const btnRattrapage        = document.getElementById("btnRattrapage");
+const btnAnnulerRattrapage = document.getElementById("btnAnnulerRattrapage");
+
+// Remplissage de la liste : uniquement les épreuves ponctuelles (hypothèse 2).
+for (const matiere of matieres) {
+  if (matiere.type === "ponctuelle") {
+    const option = document.createElement("option");
+    option.value = matiere.nom;
+    option.textContent = matiere.nom;
+    selectRattrapage.appendChild(option);
+  }
+}
+
+// Clic sur "Enregistrer le rattrapage"
+btnRattrapage.addEventListener("click", () => {
+  // Moyenne AVANT rattrapage (false) pour savoir si l'étudiant y a droit.
+  const moyenneInitiale = calculerMoyenne(false);
+
+  if (moyenneInitiale === null) {
+    alert("Saisissez d'abord les notes de toutes les épreuves.");
+    return;
+  }
+
+  if (moyenneInitiale >= SEUIL_RATTRAPAGE) {
+    alert(
+      `Rattrapage non nécessaire : votre moyenne (${moyenneInitiale.toFixed(2)}) ` +
+      `est déjà supérieure ou égale à ${SEUIL_RATTRAPAGE}.`
+    );
+    return;
+  }
+
+  // Même validation que pour une note normale (voir ajouterNote).
+  const note = parseFloat(inputRattrapage.value);
+  if (Number.isNaN(note) || note < 0 || note > 20) {
+    alert("Note invalide : saisissez un nombre entre 0 et 20.");
+    return;
+  }
+
+  notesRattrapage[selectRattrapage.value] = note; // on mémorise la note pour cette épreuve
+  inputRattrapage.value = "";
+  rafraichirApresRattrapage();
+});
+
+// Clic sur "Annuler les rattrapages"
+btnAnnulerRattrapage.addEventListener("click", () => {
+  effacerRattrapage();
+  rafraichirApresRattrapage();
+});
+
+/**
+ * Supprime toutes les notes de rattrapage.
+ * "for...in" parcourt les CLÉS d'un objet ; delete retire la clé.
+ */
+function effacerRattrapage() {
+  for (const nom in notesRattrapage) {
+    delete notesRattrapage[nom];
+  }
+}
+
+/**
+ * Redessine le tableau et recalcule la moyenne après un changement de rattrapage.
+ */
+function rafraichirApresRattrapage() {
+  afficherTableau(document.getElementById("tbodyMatieres"));
+  mettreAJourMoyenne();
 }
