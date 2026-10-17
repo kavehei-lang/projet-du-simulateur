@@ -1,27 +1,51 @@
 <!DOCTYPE html>
+<!-- <!DOCTYPE html> : indique au navigateur que la page est écrite en HTML5 -->
 <html lang="fr">
+<!-- lang="fr" : la page est en français (utile pour l'accessibilité et le référencement) -->
 <head>
+  <!-- <head> : informations sur la page, non affichées directement à l'écran -->
   <meta charset="UTF-8">
+  <!-- UTF-8 : permet d'afficher correctement les accents et caractères spéciaux (é, è, à, ’...) -->
   <title>Simulateur de notes BTS SIO</title>
+  <!-- Titre affiché dans l'onglet du navigateur -->
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Rend la page adaptée aux écrans de téléphone et de tablette (responsive) -->
+
+  <!-- Chargement de Bootstrap (bibliothèque CSS) depuis un CDN :
+       il fournit des classes toutes faites (btn, form-control, row, col-md-4...) pour la mise en forme -->
   <link
     href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
     rel="stylesheet"
   >
 </head>
 <body class="bg-light">
+  <!-- bg-light : fond gris clair (classe Bootstrap) -->
+
+  <!-- container : centre le contenu et limite sa largeur ; my-4 : marge verticale -->
   <div class="container my-4">
     <h1 class="mb-3">Simulateur de notes BTS SIO</h1>
 
+    <!-- ============================================================
+         ZONE DE SAISIE : choix de la matière, de la note et boutons
+         ============================================================ -->
+    <!-- row : ligne de la grille Bootstrap (12 colonnes) ; mb-3 : marge en bas -->
     <div class="row mb-3">
+
+      <!-- Colonne 1 : liste déroulante des matières (4 colonnes sur 12 = un tiers de la largeur) -->
       <div class="col-md-4">
+        <!-- "for" relie le label à l'élément qui a le même id : cliquer sur le texte active la liste -->
         <label for="selectMatiere" class="form-label">Matière</label>
         <select id="selectMatiere" class="form-select">
-          <!-- Options ajoutées en JavaScript -->
+          <!-- Options ajoutées en JavaScript (fonction initialiserSelectMatieres) -->
         </select>
       </div>
+
+      <!-- Colonne 2 : champ de saisie de la note -->
       <div class="col-md-4">
         <label for="inputNote" class="form-label">Note sur 20</label>
+        <!-- type="number" : n'accepte que des nombres ;
+             min / max : bornes autorisées par le navigateur ;
+             step="0.5" : la note évolue par pas de 0,5 avec les flèches -->
         <input
           type="number"
           id="inputNote"
@@ -31,72 +55,136 @@
           step="0.5"
         >
       </div>
+
+      <!-- Colonne 3 : les trois boutons.
+           d-flex : alignement en ligne ; align-items-end : alignés en bas ; gap-2 : espace entre boutons -->
       <div class="col-md-4 d-flex align-items-end gap-2">
+        <!-- Enregistre la note saisie pour la matière choisie -->
         <button id="btnAjouter" class="btn btn-primary">Ajouter / Modifier la note</button>
+        <!-- Calcule la moyenne générale pondérée et la mention -->
         <button id="btnCalculer" class="btn btn-success">Calculer la moyenne</button>
+        <!-- Efface toutes les notes et les résultats -->
         <button id="btnReset" class="btn btn-outline-secondary">Réinitialiser</button>
       </div>
     </div>
 
+    <!-- ============================================================
+         TABLEAU RÉCAPITULATIF des épreuves
+         ============================================================ -->
+    <!-- table-responsive : ajoute un défilement horizontal si l'écran est trop étroit -->
     <div class="table-responsive mb-3">
+      <!-- table-striped : lignes alternées en couleur ; align-middle : centre verticalement le texte -->
       <table class="table table-striped align-middle">
+        <!-- En-tête du tableau (fond foncé grâce à table-dark) -->
         <thead class="table-dark">
           <tr>
             <th>Matière</th>
             <th>Type</th>
             <th>Coef</th>
             <th>Note</th>
-            <th>Points (note × coef)</th>
+            <!-- Note de rattrapage ("—" si l'épreuve n'a pas été repassée) -->
+            <th>Rattrapage</th>
+            <th>Points (note retenue × coef)</th>
           </tr>
         </thead>
+        <!-- Corps du tableau : vide ici, rempli par la fonction afficherTableau() -->
         <tbody id="tbodyMatieres">
           <!-- Lignes générées en JavaScript -->
         </tbody>
       </table>
     </div>
 
+    <!-- ============================================================
+         OPTIONS FACULTATIVES
+         Règle : une seule option parmi LV2, Maths approfondies et
+         Certification (liste déroulante), + l'Engagement étudiant
+         qui peut s'ajouter (case à cocher).
+         ============================================================ -->
     <h3>Options facultatives</h3>
+    <!-- Rappel de la règle officielle (note (**) du tableau) : voir calculerPointsBonus() -->
+    <p class="text-muted small">Seuls les points au-dessus de 10 sont pris en compte.</p>
 
-<div class="row mb-3">
-  <div class="col-md-6">
-    <label for="selectOption" class="form-label">
-      Choisir une option
-    </label>
-    <select id="selectOption" class="form-select">
-      <option value="">Aucune</option>
-      <option value="lv2">Langue vivante 2</option>
-      <option value="maths">Mathématiques approfondies</option>
-      <option value="certification">
-        Parcours de certification complémentaire
-      </option>
-    </select>
-  </div>
+    <div class="row mb-3">
+      <!-- Colonne gauche : liste déroulante = un seul choix possible à la fois -->
+      <div class="col-md-6">
+        <label for="selectOption" class="form-label">
+          Choisir une option
+        </label>
+        <select id="selectOption" class="form-select">
+          <!-- value="" : valeur vide = aucune option choisie.
+               Les autres "value" correspondent aux clés de l'objet optionsFacultatives en JavaScript -->
+          <option value="">Aucune</option>
+          <option value="lv2">Langue vivante 2</option>
+          <option value="maths">Mathématiques approfondies</option>
+          <option value="certification">
+            Parcours de certification complémentaire
+          </option>
+        </select>
+      </div>
 
-  <div class="col-md-6 d-flex align-items-end">
-    <div class="form-check mb-2">
-      <input
-        type="checkbox"
-        class="form-check-input"
-        id="engagement"
-      >
-      <label class="form-check-label" for="engagement">
-        Ajouter l’Engagement étudiant
-      </label>
+      <!-- Colonne droite : case à cocher pour l'Engagement étudiant (cumulable avec l'option ci-contre) -->
+      <div class="col-md-6 d-flex align-items-end">
+        <div class="form-check mb-2">
+          <input
+            type="checkbox"
+            class="form-check-input"
+            id="engagement"
+          >
+          <label class="form-check-label" for="engagement">
+            Ajouter l’Engagement étudiant
+          </label>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
 
-<div id="notesOptions" class="mb-3"></div>
+    <!-- Zone vide : le JavaScript y ajoute les champs "note" et "coefficient"
+         de chaque option sélectionnée -->
+    <div id="notesOptions" class="mb-3"></div>
 
+    <!-- ============================================================
+         RATTRAPAGE
+         Disponible si la moyenne est inférieure à 10 : on peut repasser
+         une épreuve ponctuelle (la meilleure des deux notes est retenue).
+         La liste est remplie en JavaScript (section 5 de script.js).
+         ============================================================ -->
+    <h3>Rattrapage</h3>
+    <div class="row mb-3">
+      <!-- Colonne 1 : épreuve à repasser -->
+      <div class="col-md-4">
+        <label for="selectRattrapage" class="form-label">Épreuve à repasser</label>
+        <select id="selectRattrapage" class="form-select">
+          <!-- Options ajoutées en JavaScript (épreuves ponctuelles uniquement) -->
+        </select>
+      </div>
+      <!-- Colonne 2 : nouvelle note -->
+      <div class="col-md-4">
+        <label for="inputRattrapage" class="form-label">Note de rattrapage sur 20</label>
+        <input type="number" id="inputRattrapage" class="form-control" min="0" max="20" step="0.5">
+      </div>
+      <!-- Colonne 3 : boutons -->
+      <div class="col-md-4 d-flex align-items-end gap-2">
+        <button id="btnRattrapage" class="btn btn-warning">Enregistrer le rattrapage</button>
+        <button id="btnAnnulerRattrapage" class="btn btn-outline-secondary">Annuler</button>
+      </div>
+    </div>
 
+    <!-- ============================================================
+         RÉSULTATS : moyenne générale et mention
+         ============================================================ -->
+    <!-- alert alert-secondary : encadré gris Bootstrap -->
     <div class="alert alert-secondary">
+      <!-- mb-1 / mb-0 : petites marges en bas -->
       <p class="mb-1"><strong>Moyenne générale :</strong>
+        <!-- Le JavaScript remplace le "—" par la moyenne calculée -->
         <span id="spanMoyenne">—</span> / 20</p>
       <p class="mb-0"><strong>Mention :</strong>
+        <!-- Le JavaScript remplace le "—" par la mention obtenue -->
         <span id="spanMention">—</span></p>
     </div>
   </div>
 
+  <!-- Chargement du JavaScript en fin de page : ainsi, tous les éléments HTML
+       ci-dessus existent déjà quand le script s'exécute -->
   <script src="script.js"></script>
 </body>
 </html>
